@@ -42,7 +42,7 @@ public class MainApp extends Application {
         controller.setScene(scene);
         controller.setAppPrefs(prefs);
 
-        stage.setTitle("YouTube 视频下载器 v" + VERSION);
+        stage.setTitle("视频下载器 v" + VERSION);
         stage.setScene(scene);
         stage.setResizable(false);
         stage.show();

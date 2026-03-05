@@ -91,9 +91,13 @@ public class MainController {
     private static final String PREF_HISTORY     = "downloadHistory";
     private final Preferences prefs = Preferences.userNodeForPackage(MainController.class);
 
-    // Fix 4: YouTube URL 正则
-    private static final Pattern YOUTUBE_URL_PATTERN =
-        Pattern.compile("https?://(www\\.)?(youtube\\.com/|youtu\\.be/)\\S+");
+    // 支持 YouTube、TikTok、抖音的 URL 正则
+    private static final Pattern VALID_URL_PATTERN = Pattern.compile(
+        "https?://(www\\.)?" +
+        "(youtube\\.com/|youtu\\.be/|" +
+        "tiktok\\.com/|vm\\.tiktok\\.com/|vt\\.tiktok\\.com/|" +
+        "douyin\\.com/|v\\.douyin\\.com/)" +
+        "\\S*");
 
     public void setScene(Scene scene) { this.scene = scene; }
     public void setAppPrefs(Preferences prefs) { this.appPrefs = prefs; }
@@ -167,9 +171,9 @@ public class MainController {
 
     private void autoFillFromClipboard() {
         String text = readClipboard();
-        if (text != null && isValidYoutubeUrl(text) && urlArea.getText().trim().isEmpty()) {
+        if (text != null && isValidUrl(text) && urlArea.getText().trim().isEmpty()) {
             urlArea.setText(text.trim());
-            appendLog("📋 已自动填入剪贴板链接\n");
+            appendLog("📋 已自动填入剪贴板链接（" + detectPlatform(text) + "）\n");
         }
     }
 
@@ -197,9 +201,17 @@ public class MainController {
     @FXML private void onClearLog() { logArea.clear(); }
 
     // ── 解析视频 ──────────────────────────────────────────────────────
-    // Fix 4: 校验 URL 格式，过滤无效链接
-    private boolean isValidYoutubeUrl(String url) {
-        return YOUTUBE_URL_PATTERN.matcher(url).find();
+    // 校验 URL 格式（YouTube / TikTok / 抖音）
+    private boolean isValidUrl(String url) {
+        return VALID_URL_PATTERN.matcher(url).find();
+    }
+
+    // 识别平台名称，用于日志提示
+    private String detectPlatform(String url) {
+        if (url.contains("youtube.com") || url.contains("youtu.be")) return "YouTube";
+        if (url.contains("tiktok.com"))  return "TikTok";
+        if (url.contains("douyin.com"))  return "抖音";
+        return "未知平台";
     }
 
     @FXML
@@ -212,7 +224,7 @@ public class MainController {
         for (String line : raw.split("\\n")) {
             String url = line.trim();
             if (url.isEmpty()) continue;
-            if (isValidYoutubeUrl(url)) {
+            if (isValidUrl(url)) {
                 downloadQueue.add(url);
             } else {
                 invalid.add(url);
@@ -223,7 +235,10 @@ public class MainController {
             appendLog("⚠️ 已忽略 " + invalid.size() + " 个无效链接：\n");
             invalid.forEach(u -> appendLog("  " + u + "\n"));
         }
-        if (downloadQueue.isEmpty()) { showAlert("未检测到有效的 YouTube 链接"); return; }
+        if (downloadQueue.isEmpty()) { showAlert("未检测到有效的链接（支持 YouTube / 抖音 / TikTok）"); return; }
+        appendLog("📥 共 " + downloadQueue.size() + " 个链接：" +
+            downloadQueue.stream().map(this::detectPlatform)
+                .distinct().collect(java.util.stream.Collectors.joining("、")) + "\n");
         fetchVideoInfo(downloadQueue.get(0));
     }
 
