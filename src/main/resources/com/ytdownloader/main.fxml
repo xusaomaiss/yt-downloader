@@ -15,9 +15,17 @@
         <StackPane styleClass="logo-box" prefWidth="48" prefHeight="48">
             <Label text="🎬" style="-fx-font-size:26px;"/>
         </StackPane>
-        <VBox spacing="2" HBox.hgrow="ALWAYS">
+        <VBox spacing="6" HBox.hgrow="ALWAYS">
             <Label text="视频下载器" styleClass="title-label"/>
-            <Label text="支持 YouTube · Bilibili · 抖音 · TikTok · Vimeo · X · Instagram" styleClass="subtitle-label"/>
+            <HBox spacing="5" alignment="CENTER_LEFT">
+                <Label text="YouTube"   styleClass="platform-chip" style="-fx-background-color: #FF0000;"/>
+                <Label text="Bilibili"  styleClass="platform-chip" style="-fx-background-color: #FB7299;"/>
+                <Label text="抖音"      styleClass="platform-chip" style="-fx-background-color: #161823;"/>
+                <Label text="TikTok"    styleClass="platform-chip" style="-fx-background-color: #010101;"/>
+                <Label text="Vimeo"     styleClass="platform-chip" style="-fx-background-color: #1AB7EA;"/>
+                <Label text="X"         styleClass="platform-chip" style="-fx-background-color: #000000;"/>
+                <Label text="Instagram" styleClass="platform-chip" style="-fx-background-color: #C13584;"/>
+            </HBox>
         </VBox>
         <Button text="🕘  历史记录" onAction="#onOpenHistory" styleClass="settings-btn"/>
         <Button text="⚙️  设置" onAction="#onOpenSettings" styleClass="settings-btn"/>

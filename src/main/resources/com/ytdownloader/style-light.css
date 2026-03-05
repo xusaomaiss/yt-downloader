@@ -118,3 +118,11 @@
 .log-area .content { -fx-background-color: #f8fafc; }
 .progress-indicator .percentage { -fx-fill: transparent; }
 .progress-indicator { -fx-progress-color: #6366f1; }
+.platform-chip {
+    -fx-text-fill: white;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 2px 8px;
+    -fx-background-radius: 10px;
+    -fx-cursor: default;
+}
