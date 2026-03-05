@@ -601,6 +601,77 @@ public class MainController {
         });
     }
 
+    // ── 关于 ──────────────────────────────────────────────────────────
+    @FXML
+    private void onOpenAbout() {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("关于");
+        dialog.setHeaderText(null);
+
+        // 顶部 Logo + 名称
+        javafx.scene.layout.StackPane logoBox = new javafx.scene.layout.StackPane(new Label("🎬"));
+        logoBox.setStyle("-fx-background-color: linear-gradient(to bottom right, #6366f1, #8b5cf6);" +
+            "-fx-background-radius: 16px; -fx-min-width: 56px; -fx-min-height: 56px;");
+        ((Label) logoBox.getChildren().get(0)).setStyle("-fx-font-size: 28px;");
+
+        Label appName = new Label("视频下载器");
+        appName.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        Label appVer = new Label("版本 v" + MainApp.VERSION);
+        appVer.setStyle("-fx-font-size: 12px; -fx-text-fill: #94a3b8;");
+        Label appDesc = new Label("基于 yt-dlp 开发的多平台视频下载工具");
+        appDesc.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
+        VBox appInfo = new VBox(4, appName, appVer, appDesc);
+        appInfo.setStyle("-fx-alignment: CENTER_LEFT;");
+
+        HBox header = new HBox(14, logoBox, appInfo);
+        header.setStyle("-fx-alignment: CENTER_LEFT; -fx-padding: 0 0 16 0;");
+
+        // 支持的平台列表
+        Label platformTitle = new Label("支持的平台");
+        platformTitle.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #475569; -fx-padding: 0 0 8 0;");
+
+        String[][] platforms = {
+            {"🔴", "YouTube",   "youtube.com · youtu.be",                        "无需登录，支持 4K"},
+            {"🩷", "Bilibili",  "bilibili.com · b23.tv",                         "支持番剧，高码率需大会员 Cookies"},
+            {"⚫", "抖音",      "douyin.com · v.douyin.com",                     "无需登录"},
+            {"⚫", "TikTok",   "tiktok.com · vm.tiktok.com · vt.tiktok.com",    "无需登录"},
+            {"🔵", "Vimeo",    "vimeo.com",                                      "无需登录"},
+            {"⚫", "X",        "x.com · twitter.com · t.co",                    "支持含视频的帖子"},
+            {"🟣", "Instagram","instagram.com",                                  "私密内容需 Cookies"},
+        };
+
+        javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+        grid.setHgap(12);
+        grid.setVgap(8);
+        grid.setStyle("-fx-background-color: #f8fafc; -fx-padding: 12; -fx-background-radius: 10; -fx-border-color: #e2e8f0; -fx-border-radius: 10;");
+
+        for (int i = 0; i < platforms.length; i++) {
+            String[] p = platforms[i];
+            Label icon   = new Label(p[0] + "  " + p[1]);
+            icon.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1e293b; -fx-min-width: 90;");
+            Label domain = new Label(p[2]);
+            domain.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748b; -fx-min-width: 240;");
+            Label note   = new Label(p[3]);
+            note.setStyle("-fx-font-size: 11px; -fx-text-fill: #94a3b8;");
+            grid.add(icon,   0, i);
+            grid.add(domain, 1, i);
+            grid.add(note,   2, i);
+        }
+
+        // 底部说明
+        Label footer = new Label("依赖：yt-dlp · ffmpeg    开源地址：github.com/xusaomaiss/yt-downloader");
+        footer.setStyle("-fx-font-size: 11px; -fx-text-fill: #94a3b8; -fx-padding: 12 0 0 0;");
+        footer.setWrapText(true);
+
+        VBox content = new VBox(0, header, platformTitle, grid, footer);
+        content.setPadding(new javafx.geometry.Insets(20));
+        content.setPrefWidth(560);
+
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.showAndWait();
+    }
+
     // ── 设置面板 ──────────────────────────────────────────────────────
     @FXML
     private void onOpenSettings() {
