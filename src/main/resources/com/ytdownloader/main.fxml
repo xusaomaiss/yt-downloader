@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.ytdownloader.MainController"
+      spacing="0" styleClass="root-container">
+    <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+
+    <!-- 顶部标题栏 -->
+    <HBox alignment="CENTER_LEFT" spacing="12">
+        <padding><Insets bottom="16"/></padding>
+        <StackPane styleClass="logo-box" prefWidth="48" prefHeight="48">
+            <Label text="🎬" style="-fx-font-size:26px;"/>
+        </StackPane>
+        <VBox spacing="2" HBox.hgrow="ALWAYS">
+            <Label text="YouTube 视频下载器" styleClass="title-label"/>
+            <Label text="支持批量下载 · 自动合并音视频" styleClass="subtitle-label"/>
+        </VBox>
+        <Button text="🕘  历史记录" onAction="#onOpenHistory" styleClass="settings-btn"/>
+        <Button text="⚙️  设置" onAction="#onOpenSettings" styleClass="settings-btn"/>
+    </HBox>
+
+    <Separator styleClass="divider"/>
+
+    <!-- 1️⃣ 视频链接区 -->
+    <VBox spacing="8">
+        <padding><Insets top="14" bottom="14"/></padding>
+        <HBox alignment="CENTER_LEFT" spacing="6">
+            <Label text="📎  视频链接" styleClass="section-label"/>
+            <Label text="（每行一个，支持批量）" styleClass="hint-label"/>
+        </HBox>
+        <HBox spacing="8" alignment="TOP_LEFT">
+            <TextArea fx:id="urlArea"
+                      promptText="粘贴 YouTube 视频链接（支持批量，每行一个）"
+                      prefHeight="80" HBox.hgrow="ALWAYS" wrapText="true"/>
+            <VBox spacing="6">
+                <Button fx:id="fetchBtn" text="🔍  解析视频" onAction="#onFetch"
+                        styleClass="primary-btn" prefWidth="104" prefHeight="30"/>
+                <Button fx:id="pasteBtn" text="📋  粘贴" onAction="#onPaste"
+                        styleClass="secondary-btn" prefWidth="104" prefHeight="30"/>
+                <Button fx:id="clearBtn" text="✕  清空" onAction="#onClearUrl"
+                        styleClass="danger-btn" prefWidth="104" prefHeight="30"/>
+            </VBox>
+        </HBox>
+    </VBox>
+
+    <!-- 视频预览区 -->
+    <VBox fx:id="previewBox" styleClass="preview-box" spacing="0">
+        <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        <HBox spacing="12" alignment="CENTER_LEFT">
+            <StackPane prefWidth="160" prefHeight="90">
+                <VBox fx:id="thumbPlaceholder" alignment="CENTER" styleClass="thumb-placeholder"
+                      prefWidth="160" prefHeight="90">
+                    <ProgressIndicator fx:id="thumbSpinner" prefWidth="28" prefHeight="28"/>
+                    <Label text="加载中..." styleClass="hint-label"/>
+                </VBox>
+                <ImageView fx:id="thumbnailView" fitWidth="160" fitHeight="90"
+                           preserveRatio="true" visible="false"/>
+            </StackPane>
+            <VBox spacing="6" HBox.hgrow="ALWAYS">
+                <Label fx:id="videoTitleLabel" text="" styleClass="video-title-label" wrapText="true"/>
+                <Label fx:id="videoDurationLabel" text="" styleClass="video-meta-label"/>
+            </VBox>
+        </HBox>
+    </VBox>
+
+    <Separator styleClass="divider"/>
+
+    <!-- 2️⃣ 下载设置区 -->
+    <VBox spacing="10">
+        <padding><Insets top="14" bottom="14"/></padding>
+        <Label text="⚙️  下载设置" styleClass="section-label"/>
+        <HBox spacing="16" alignment="CENTER_LEFT">
+            <VBox spacing="5">
+                <Label text="画质" styleClass="field-label"/>
+                <ComboBox fx:id="qualityBox" prefWidth="120"/>
+            </VBox>
+            <VBox spacing="5">
+                <Label text="格式" styleClass="field-label"/>
+                <ComboBox fx:id="formatBox" prefWidth="175"/>
+            </VBox>
+            <VBox spacing="5" HBox.hgrow="ALWAYS">
+                <Label text="保存位置" styleClass="field-label"/>
+                <HBox spacing="8">
+                    <TextField fx:id="outputPathField" HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="browseBtn" text="选择" onAction="#onBrowse" styleClass="secondary-btn"/>
+                </HBox>
+            </VBox>
+        </HBox>
+    </VBox>
+
+    <!-- 3️⃣ 下载按钮 + 进度 -->
+    <Button fx:id="downloadBtn" text="⬇   开始下载" onAction="#onDownload"
+            maxWidth="Infinity" styleClass="download-btn"/>
+
+    <VBox spacing="4" style="-fx-padding: 8 0 0 0;">
+        <ProgressBar fx:id="progressBar" progress="0" maxWidth="Infinity"
+                     prefHeight="22" minHeight="22"/>
+        <Label fx:id="statusLabel" text="等待操作..." styleClass="status-label"/>
+    </VBox>
+
+    <!-- 下载完成提示条 -->
+    <HBox fx:id="completionBar" alignment="CENTER_LEFT" spacing="12" styleClass="completion-bar">
+        <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
+        <Label fx:id="completionLabel" text="" styleClass="completion-label" HBox.hgrow="ALWAYS"/>
+        <Button text="📂  打开文件夹" onAction="#onOpenFolder" styleClass="primary-btn"/>
+    </HBox>
+
+    <Separator styleClass="divider" style="-fx-padding: 4 0 0 0;"/>
+
+    <!-- 4️⃣ 下载任务列表 -->
+    <VBox spacing="6" style="-fx-padding: 10 0 8 0;">
+        <Label text="⬇  下载任务" styleClass="section-label"/>
+        <TableView fx:id="taskTable" prefHeight="130" styleClass="task-table">
+            <columns>
+                <TableColumn fx:id="colTitle"    text="视频标题" prefWidth="280"/>
+                <TableColumn fx:id="colQuality"  text="画质"     prefWidth="80"/>
+                <TableColumn fx:id="colProgress" text="进度"     prefWidth="80"/>
+                <TableColumn fx:id="colStatus"   text="状态"     prefWidth="90"/>
+            </columns>
+        </TableView>
+    </VBox>
+
+    <Separator styleClass="divider"/>
+
+    <!-- 5️⃣ 日志区 -->
+    <VBox spacing="6" VBox.vgrow="ALWAYS" style="-fx-padding: 10 0 0 0;">
+        <HBox alignment="CENTER_LEFT" spacing="8">
+            <padding><Insets bottom="4"/></padding>
+            <Label text="📄  日志" styleClass="section-label" HBox.hgrow="ALWAYS"/>
+            <Button text="清空" onAction="#onClearLog" styleClass="danger-btn"
+                    style="-fx-padding: 3px 12px; -fx-font-size: 11px;"/>
+        </HBox>
+        <TextArea fx:id="logArea" editable="false" prefHeight="90"
+                  wrapText="true" styleClass="log-area"/>
+    </VBox>
+
+</VBox>
