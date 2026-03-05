@@ -92,13 +92,16 @@ public class MainController {
     private static final String PREF_COOKIES_FILE = "cookiesFile";
     private final Preferences prefs = Preferences.userNodeForPackage(MainController.class);
 
-    // 支持 YouTube、TikTok、抖音、Bilibili 的 URL 正则
+    // 支持多平台的 URL 正则
     private static final Pattern VALID_URL_PATTERN = Pattern.compile(
         "https?://(www\\.)?" +
         "(youtube\\.com/|youtu\\.be/|" +
         "tiktok\\.com/|vm\\.tiktok\\.com/|vt\\.tiktok\\.com/|" +
         "douyin\\.com/|v\\.douyin\\.com/|" +
-        "bilibili\\.com/|b23\\.tv/)" +
+        "bilibili\\.com/|b23\\.tv/|" +
+        "vimeo\\.com/|" +
+        "twitter\\.com/|x\\.com/|t\\.co/|" +
+        "instagram\\.com/)" +
         "\\S*");
 
     public void setScene(Scene scene) { this.scene = scene; }
@@ -214,6 +217,9 @@ public class MainController {
         if (url.contains("tiktok.com"))                                 return "TikTok";
         if (url.contains("douyin.com"))                                 return "抖音";
         if (url.contains("bilibili.com") || url.contains("b23.tv"))    return "Bilibili";
+        if (url.contains("vimeo.com"))                                  return "Vimeo";
+        if (url.contains("twitter.com") || url.contains("x.com") || url.contains("t.co")) return "X";
+        if (url.contains("instagram.com"))                              return "Instagram";
         return "未知平台";
     }
 
@@ -629,7 +635,7 @@ public class MainController {
             if (f != null) cookiesField.setText(f.getAbsolutePath());
         });
         HBox cookiesBox = new HBox(8, cookiesField, cookiesBrowseBtn);
-        Label cookiesHint = new Label("用于 Bilibili 下载 1080P 高码率及以上画质（需大会员），\n导出方式：浏览器安装 Get cookies.txt LOCALLY 插件");
+        Label cookiesHint = new Label("用于需要登录才能下载的内容（Bilibili 高画质、Instagram 等），\n导出方式：浏览器安装 Get cookies.txt LOCALLY 插件");
         cookiesHint.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 11px;");
 
         // 主题
@@ -649,7 +655,7 @@ public class MainController {
             new Label("🌐  代理地址："), hostField,
             new Label("🔌  代理端口："), portField,
             new Separator(),
-            new Label("🍪  Bilibili Cookies 文件："), cookiesBox, cookiesHint,
+            new Label("🍪  Cookies 文件（需登录平台）："), cookiesBox, cookiesHint,
             new Separator(),
             new Label("🎨  界面主题："), themeBox,
             new Separator(),
