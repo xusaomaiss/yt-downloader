@@ -668,7 +668,7 @@ public class MainController {
         content.setPrefWidth(560);
 
         dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.getDialogPane().getButtonTypes().add(new ButtonType("关闭", ButtonBar.ButtonData.OK_DONE));
         dialog.showAndWait();
     }
 
