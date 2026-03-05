@@ -22,6 +22,8 @@ import java.io.*;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -73,11 +75,25 @@ public class MainController {
     private final ObservableList<DownloadTask> taskList = FXCollections.observableArrayList();
     private int currentIndex = 0;
 
+    // Fix 5: 缓存 yt-dlp 路径，避免每次重新探测
+    private String cachedYtDlpPath = null;
+
+    // Fix 6: 线程池替代裸 new Thread()
+    private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r);
+        t.setDaemon(true);
+        return t;
+    });
+
     private static final String PREF_OUTPUT_PATH = "outputPath";
     private static final String PREF_PROXY_HOST  = "proxyHost";
     private static final String PREF_PROXY_PORT  = "proxyPort";
     private static final String PREF_HISTORY     = "downloadHistory";
     private final Preferences prefs = Preferences.userNodeForPackage(MainController.class);
+
+    // Fix 4: YouTube URL 正则
+    private static final Pattern YOUTUBE_URL_PATTERN =
+        Pattern.compile("https?://(www\\.)?(youtube\\.com/|youtu\\.be/)\\S+");
 
     public void setScene(Scene scene) { this.scene = scene; }
     public void setAppPrefs(Preferences prefs) { this.appPrefs = prefs; }
@@ -139,27 +155,32 @@ public class MainController {
     }
 
     // ── 剪贴板 ────────────────────────────────────────────────────────
-    private void autoFillFromClipboard() {
+    // Fix 7: 提取公共方法，消除 autoFillFromClipboard 和 onPaste 的重复代码
+    private String readClipboard() {
         try {
             Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
-            String text = (String) cb.getData(DataFlavor.stringFlavor);
-            if (text != null && (text.contains("youtube.com/") || text.contains("youtu.be/"))
-                    && urlArea.getText().trim().isEmpty()) {
-                urlArea.setText(text.trim());
-                appendLog("📋 已自动填入剪贴板链接\n");
-            }
-        } catch (Exception ignored) {}
+            return (String) cb.getData(DataFlavor.stringFlavor);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void autoFillFromClipboard() {
+        String text = readClipboard();
+        if (text != null && isValidYoutubeUrl(text) && urlArea.getText().trim().isEmpty()) {
+            urlArea.setText(text.trim());
+            appendLog("📋 已自动填入剪贴板链接\n");
+        }
     }
 
     @FXML private void onPaste() {
-        try {
-            Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
-            String text = (String) cb.getData(DataFlavor.stringFlavor);
-            if (text != null && !text.trim().isEmpty()) {
-                urlArea.setText(text.trim());
-                appendLog("📋 已粘贴链接\n");
-            }
-        } catch (Exception e) { appendLog("粘贴失败：" + e.getMessage() + "\n"); }
+        String text = readClipboard();
+        if (text != null && !text.trim().isEmpty()) {
+            urlArea.setText(text.trim());
+            appendLog("📋 已粘贴链接\n");
+        } else {
+            appendLog("粘贴失败：剪贴板为空\n");
+        }
     }
 
     @FXML private void onClearUrl() {
@@ -176,17 +197,33 @@ public class MainController {
     @FXML private void onClearLog() { logArea.clear(); }
 
     // ── 解析视频 ──────────────────────────────────────────────────────
+    // Fix 4: 校验 URL 格式，过滤无效链接
+    private boolean isValidYoutubeUrl(String url) {
+        return YOUTUBE_URL_PATTERN.matcher(url).find();
+    }
+
     @FXML
     private void onFetch() {
         String raw = urlArea.getText().trim();
         if (raw.isEmpty()) { showAlert("请输入至少一个 YouTube 视频链接"); return; }
-        String[] lines = raw.split("\\n");
+
         downloadQueue.clear();
-        for (String line : lines) {
+        List<String> invalid = new ArrayList<>();
+        for (String line : raw.split("\\n")) {
             String url = line.trim();
-            if (!url.isEmpty()) downloadQueue.add(url);
+            if (url.isEmpty()) continue;
+            if (isValidYoutubeUrl(url)) {
+                downloadQueue.add(url);
+            } else {
+                invalid.add(url);
+            }
         }
-        if (downloadQueue.isEmpty()) { showAlert("未检测到有效链接"); return; }
+
+        if (!invalid.isEmpty()) {
+            appendLog("⚠️ 已忽略 " + invalid.size() + " 个无效链接：\n");
+            invalid.forEach(u -> appendLog("  " + u + "\n"));
+        }
+        if (downloadQueue.isEmpty()) { showAlert("未检测到有效的 YouTube 链接"); return; }
         fetchVideoInfo(downloadQueue.get(0));
     }
 
@@ -258,7 +295,7 @@ public class MainController {
             fetchBtn.setDisable(false);
         });
 
-        new Thread(task).start();
+        executor.submit(task); // Fix 6
     }
 
     // ── 浏览路径 ──────────────────────────────────────────────────────
@@ -321,12 +358,15 @@ public class MainController {
 
         Platform.runLater(() -> statusLabel.setText("下载中 (" + current + "/" + total + ")..."));
 
-        Task<Void> task = new Task<>() {
+        // Fix 2: Task<String> 返回从 yt-dlp 捕获的真实标题
+        Task<String> task = new Task<>() {
             @Override
-            protected Void call() throws Exception {
+            protected String call() throws Exception {
                 List<String> cmd = new ArrayList<>();
                 cmd.add(getYtDlpPath());
                 cmd.addAll(getProxyArgs());
+                // Fix 2: 用带前缀的 --print 标记标题行，避免与普通输出混淆
+                cmd.add("--print"); cmd.add("TITLE:%(title)s");
 
                 String fmt = formatBox.getValue();
                 if (fmt.contains("MP3")) {
@@ -347,8 +387,14 @@ public class MainController {
                 Process process = pb.start();
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 Pattern pat = Pattern.compile("\\[download\\]\\s+(\\d+\\.?\\d*)%");
+                String capturedTitle = null;
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    // Fix 2: 识别带前缀的标题行
+                    if (line.startsWith("TITLE:") && capturedTitle == null) {
+                        capturedTitle = line.substring(6);
+                        continue;
+                    }
                     appendLog(line + "\n");
                     Matcher m = pat.matcher(line);
                     if (m.find()) {
@@ -362,28 +408,35 @@ public class MainController {
                         });
                     }
                 }
-                process.waitFor();
-                return null;
+                // Fix 1: 检查退出码，非 0 则抛出异常触发 setOnFailed
+                int exitCode = process.waitFor();
+                if (exitCode != 0) throw new IOException("yt-dlp 退出码：" + exitCode);
+                return capturedTitle;
             }
         };
 
         task.setOnSucceeded(e -> {
+            String title = task.getValue();
             appendLog("✅ 第 " + current + " 个完成\n");
             int doneIndex = currentIndex;
             Platform.runLater(() -> {
                 if (doneIndex < taskList.size()) {
                     taskList.get(doneIndex).setProgress("100%");
                     taskList.get(doneIndex).setStatus("✅ 完成");
-                    taskList.get(doneIndex).titleProperty().set(videoTitleLabel.getText());
+                    // Fix 2: 使用实际标题而非 videoTitleLabel（只有第一个视频的标题）
+                    if (title != null) taskList.get(doneIndex).titleProperty().set(title);
                 }
             });
-            saveHistory(url, outputPath, qualityBox.getValue());
+            String finalTitle = title != null ? title : videoTitleLabel.getText();
+            saveHistory(url, outputPath, qualityBox.getValue(), finalTitle);
             currentIndex++;
             downloadNext();
         });
 
         task.setOnFailed(e -> {
-            appendLog("❌ 第 " + current + " 个失败\n");
+            // Fix 1: 下载失败时正确标记状态
+            String errMsg = task.getException() != null ? task.getException().getMessage() : "未知错误";
+            appendLog("❌ 第 " + current + " 个失败：" + errMsg + "\n");
             int doneIndex = currentIndex;
             Platform.runLater(() -> {
                 if (doneIndex < taskList.size()) taskList.get(doneIndex).setStatus("❌ 失败");
@@ -392,7 +445,7 @@ public class MainController {
             downloadNext();
         });
 
-        new Thread(task).start();
+        executor.submit(task); // Fix 6
     }
 
     // ── 打开文件夹 ────────────────────────────────────────────────────
@@ -412,9 +465,10 @@ public class MainController {
             thumbSpinner.setProgress(-1);
         });
 
-        Task<String> task = new Task<>() {
+        // Fix 3: Task<Image> —— 在后台线程读取图片数据并删除临时文件，不留残余
+        Task<Image> task = new Task<>() {
             @Override
-            protected String call() throws Exception {
+            protected Image call() throws Exception {
                 File tmpDir = new File(System.getProperty("java.io.tmpdir"));
                 String basePath = tmpDir.getAbsolutePath() + "/yt_thumb_" + System.currentTimeMillis();
                 List<String> cmd = new ArrayList<>();
@@ -431,16 +485,23 @@ public class MainController {
                 Process process = pb.start();
                 new BufferedReader(new InputStreamReader(process.getInputStream())).lines().forEach(l -> {});
                 process.waitFor();
+
                 File jpg = new File(basePath + ".jpg");
-                return jpg.exists() ? jpg.toURI().toString() : null;
+                if (!jpg.exists()) return null;
+                // Fix 3: 将图片数据读入内存，立即删除临时文件
+                try (InputStream is = new FileInputStream(jpg)) {
+                    return new Image(is, 160, 90, true, true);
+                } finally {
+                    jpg.delete();
+                }
             }
         };
 
         task.setOnSucceeded(e -> {
-            String uri = task.getValue();
+            Image img = task.getValue();
             Platform.runLater(() -> {
-                if (uri != null) {
-                    thumbnailView.setImage(new Image(uri, 160, 90, true, true));
+                if (img != null) {
+                    thumbnailView.setImage(img);
                     thumbnailView.setVisible(true);
                     thumbPlaceholder.setVisible(false);
                     thumbPlaceholder.setManaged(false);
@@ -450,15 +511,15 @@ public class MainController {
             });
         });
         task.setOnFailed(e -> Platform.runLater(() -> thumbSpinner.setVisible(false)));
-        new Thread(task).start();
+        executor.submit(task); // Fix 6
     }
 
     // ── 历史记录 ──────────────────────────────────────────────────────
-    private void saveHistory(String url, String outputPath, String quality) {
+    // Fix 2: 增加 title 参数，不再依赖 videoTitleLabel
+    private void saveHistory(String url, String outputPath, String quality, String title) {
         try {
             String existing = prefs.get(PREF_HISTORY, "");
             String time = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format(new java.util.Date());
-            String title = videoTitleLabel.getText();
             String newRecord = time + "|" + title + "|" + quality + "|" + outputPath + "|" + url + "\n";
             String[] records = existing.split("\n");
             StringBuilder sb = new StringBuilder(newRecord);
@@ -525,13 +586,11 @@ public class MainController {
         dialog.setTitle("设置  —  v" + MainApp.VERSION);
         dialog.setHeaderText(null);
 
-        // 代理
         TextField hostField = new TextField(currentHost);
         TextField portField = new TextField(currentPort);
         hostField.setPromptText("127.0.0.1（留空则使用系统代理）");
         portField.setPromptText("9674");
 
-        // 主题
         ToggleGroup themeGroup = new ToggleGroup();
         RadioButton lightBtn = new RadioButton("☀️  浅色");
         RadioButton darkBtn  = new RadioButton("🌙  深色");
@@ -558,11 +617,9 @@ public class MainController {
 
         dialog.showAndWait().ifPresent(result -> {
             if (result == ButtonType.OK) {
-                // 保存代理
                 prefs.put(PREF_PROXY_HOST, hostField.getText().trim());
                 prefs.put(PREF_PROXY_PORT, portField.getText().trim());
 
-                // 保存并切换主题
                 if (appPrefs != null && scene != null) {
                     String selectedTheme = lightBtn.isSelected() ? "light" : "dark";
                     appPrefs.put("theme", selectedTheme);
@@ -575,11 +632,14 @@ public class MainController {
     }
 
     // ── 系统通知 ──────────────────────────────────────────────────────
+    // Fix 8: 正确转义 AppleScript 字符串，防止特殊字符导致脚本出错
     private void sendSystemNotification(String title, String message) {
         try {
+            String safeTitle   = title.replace("\\", "\\\\").replace("\"", "\\\"");
+            String safeMessage = message.replace("\\", "\\\\").replace("\"", "\\\"");
             String script = String.format(
                 "display notification \"%s\" with title \"%s\" sound name \"Glass\"",
-                message.replace("\"", "\\\""), title.replace("\"", "\\\""));
+                safeMessage, safeTitle);
             new ProcessBuilder("osascript", "-e", script).start();
         } catch (Exception e) { appendLog("通知发送失败\n"); }
     }
@@ -607,13 +667,19 @@ public class MainController {
         };
     }
 
+    // Fix 5: 缓存探测结果，只在首次调用时启动子进程
     private String getYtDlpPath() {
-        String[] candidates = { "/opt/miniconda3/bin/yt-dlp", "/opt/homebrew/bin/yt-dlp", "/usr/local/bin/yt-dlp", "yt-dlp" };
+        if (cachedYtDlpPath != null) return cachedYtDlpPath;
+        String[] candidates = {"/opt/miniconda3/bin/yt-dlp", "/opt/homebrew/bin/yt-dlp", "/usr/local/bin/yt-dlp", "yt-dlp"};
         for (String path : candidates) {
-            try { Process p = new ProcessBuilder(path, "--version").start(); p.waitFor(); if (p.exitValue() == 0) return path; }
-            catch (Exception ignored) {}
+            try {
+                Process p = new ProcessBuilder(path, "--version").start();
+                p.waitFor();
+                if (p.exitValue() == 0) { cachedYtDlpPath = path; return path; }
+            } catch (Exception ignored) {}
         }
-        return "yt-dlp";
+        cachedYtDlpPath = "yt-dlp";
+        return cachedYtDlpPath;
     }
 
     private void showAlert(String message) {
