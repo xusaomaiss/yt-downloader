@@ -75,8 +75,9 @@ public class MainController {
     private final ObservableList<DownloadTask> taskList = FXCollections.observableArrayList();
     private int currentIndex = 0;
 
-    // Fix 5: 缓存 yt-dlp 路径，避免每次重新探测
-    private String cachedYtDlpPath = null;
+    // Fix 5: 缓存 yt-dlp / ffmpeg 路径，避免每次重新探测
+    private String cachedYtDlpPath  = null;
+    private String cachedFfmpegPath = null;
 
     // Fix 6: 线程池替代裸 new Thread()
     private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
@@ -718,10 +719,13 @@ public class MainController {
         return args;
     }
 
-    // 合并代理 + Cookies，所有 yt-dlp 命令统一使用此方法
+    // 合并代理 + Cookies + ffmpeg 路径，所有 yt-dlp 命令统一使用此方法
     private List<String> getCommonArgs() {
         List<String> args = new ArrayList<>(getProxyArgs());
         args.addAll(getCookiesArgs());
+        // 显式指定 ffmpeg 路径，避免 ProcessBuilder 因 PATH 受限找不到 ffmpeg 导致音视频无法合并
+        String ffmpeg = getFfmpegPath();
+        if (ffmpeg != null) { args.add("--ffmpeg-location"); args.add(ffmpeg); }
         return args;
     }
 
@@ -748,6 +752,23 @@ public class MainController {
         }
         cachedYtDlpPath = "yt-dlp";
         return cachedYtDlpPath;
+    }
+
+    // 探测 ffmpeg 路径（ProcessBuilder 的 PATH 受限，需显式指定）
+    private String getFfmpegPath() {
+        if (cachedFfmpegPath != null) return cachedFfmpegPath;
+        String[] candidates = {
+            "/opt/miniconda3/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg", "ffmpeg"
+        };
+        for (String path : candidates) {
+            try {
+                Process p = new ProcessBuilder(path, "-version").start();
+                p.waitFor();
+                if (p.exitValue() == 0) { cachedFfmpegPath = path; return path; }
+            } catch (Exception ignored) {}
+        }
+        return null; // ffmpeg 未安装，yt-dlp 会给出警告
     }
 
     private void showAlert(String message) {
