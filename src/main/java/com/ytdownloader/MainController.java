@@ -85,18 +85,20 @@ public class MainController {
         return t;
     });
 
-    private static final String PREF_OUTPUT_PATH = "outputPath";
-    private static final String PREF_PROXY_HOST  = "proxyHost";
-    private static final String PREF_PROXY_PORT  = "proxyPort";
-    private static final String PREF_HISTORY     = "downloadHistory";
+    private static final String PREF_OUTPUT_PATH  = "outputPath";
+    private static final String PREF_PROXY_HOST   = "proxyHost";
+    private static final String PREF_PROXY_PORT   = "proxyPort";
+    private static final String PREF_HISTORY      = "downloadHistory";
+    private static final String PREF_COOKIES_FILE = "cookiesFile";
     private final Preferences prefs = Preferences.userNodeForPackage(MainController.class);
 
-    // 支持 YouTube、TikTok、抖音的 URL 正则
+    // 支持 YouTube、TikTok、抖音、Bilibili 的 URL 正则
     private static final Pattern VALID_URL_PATTERN = Pattern.compile(
         "https?://(www\\.)?" +
         "(youtube\\.com/|youtu\\.be/|" +
         "tiktok\\.com/|vm\\.tiktok\\.com/|vt\\.tiktok\\.com/|" +
-        "douyin\\.com/|v\\.douyin\\.com/)" +
+        "douyin\\.com/|v\\.douyin\\.com/|" +
+        "bilibili\\.com/|b23\\.tv/)" +
         "\\S*");
 
     public void setScene(Scene scene) { this.scene = scene; }
@@ -208,9 +210,10 @@ public class MainController {
 
     // 识别平台名称，用于日志提示
     private String detectPlatform(String url) {
-        if (url.contains("youtube.com") || url.contains("youtu.be")) return "YouTube";
-        if (url.contains("tiktok.com"))  return "TikTok";
-        if (url.contains("douyin.com"))  return "抖音";
+        if (url.contains("youtube.com") || url.contains("youtu.be"))   return "YouTube";
+        if (url.contains("tiktok.com"))                                 return "TikTok";
+        if (url.contains("douyin.com"))                                 return "抖音";
+        if (url.contains("bilibili.com") || url.contains("b23.tv"))    return "Bilibili";
         return "未知平台";
     }
 
@@ -255,7 +258,7 @@ public class MainController {
             protected String[] call() throws Exception {
                 List<String> cmd = new ArrayList<>();
                 cmd.add(getYtDlpPath());
-                cmd.addAll(getProxyArgs());
+                cmd.addAll(getCommonArgs());
                 cmd.add("--print");
                 cmd.add("%(title)s\n%(duration_string)s\n%(thumbnail)s");
                 cmd.add("--no-playlist");
@@ -379,7 +382,7 @@ public class MainController {
             protected String call() throws Exception {
                 List<String> cmd = new ArrayList<>();
                 cmd.add(getYtDlpPath());
-                cmd.addAll(getProxyArgs());
+                cmd.addAll(getCommonArgs());
                 // Fix 2: 用带前缀的 --print 标记标题行，避免与普通输出混淆
                 cmd.add("--print"); cmd.add("TITLE:%(title)s");
 
@@ -488,7 +491,7 @@ public class MainController {
                 String basePath = tmpDir.getAbsolutePath() + "/yt_thumb_" + System.currentTimeMillis();
                 List<String> cmd = new ArrayList<>();
                 cmd.add(getYtDlpPath());
-                cmd.addAll(getProxyArgs());
+                cmd.addAll(getCommonArgs());
                 cmd.add("--write-thumbnail");
                 cmd.add("--skip-download");
                 cmd.add("--convert-thumbnails"); cmd.add("jpg");
@@ -593,19 +596,43 @@ public class MainController {
     // ── 设置面板 ──────────────────────────────────────────────────────
     @FXML
     private void onOpenSettings() {
-        String currentHost = prefs.get(PREF_PROXY_HOST, "");
-        String currentPort = prefs.get(PREF_PROXY_PORT, "");
-        String currentTheme = appPrefs != null ? appPrefs.get("theme", "light") : "light";
+        String currentHost    = prefs.get(PREF_PROXY_HOST, "");
+        String currentPort    = prefs.get(PREF_PROXY_PORT, "");
+        String currentCookies = prefs.get(PREF_COOKIES_FILE, "");
+        String currentTheme   = appPrefs != null ? appPrefs.get("theme", "light") : "light";
 
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("设置  —  v" + MainApp.VERSION);
         dialog.setHeaderText(null);
 
+        // 代理
         TextField hostField = new TextField(currentHost);
         TextField portField = new TextField(currentPort);
         hostField.setPromptText("127.0.0.1（留空则使用系统代理）");
         portField.setPromptText("9674");
 
+        // Bilibili Cookies
+        TextField cookiesField = new TextField(currentCookies);
+        cookiesField.setPromptText("选择 cookies.txt 文件路径（可选）");
+        cookiesField.setPrefWidth(260);
+        Button cookiesBrowseBtn = new Button("选择");
+        cookiesBrowseBtn.setOnAction(ev -> {
+            javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
+            fc.setTitle("选择 Cookies 文件");
+            fc.getExtensionFilters().add(
+                new javafx.stage.FileChooser.ExtensionFilter("Cookies 文件", "*.txt", "*.*"));
+            if (!currentCookies.isEmpty()) {
+                File parent = new File(currentCookies).getParentFile();
+                if (parent != null && parent.exists()) fc.setInitialDirectory(parent);
+            }
+            File f = fc.showOpenDialog(dialog.getDialogPane().getScene().getWindow());
+            if (f != null) cookiesField.setText(f.getAbsolutePath());
+        });
+        HBox cookiesBox = new HBox(8, cookiesField, cookiesBrowseBtn);
+        Label cookiesHint = new Label("用于 Bilibili 下载 1080P 高码率及以上画质（需大会员），\n导出方式：浏览器安装 Get cookies.txt LOCALLY 插件");
+        cookiesHint.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 11px;");
+
+        // 主题
         ToggleGroup themeGroup = new ToggleGroup();
         RadioButton lightBtn = new RadioButton("☀️  浅色");
         RadioButton darkBtn  = new RadioButton("🌙  深色");
@@ -617,10 +644,12 @@ public class MainController {
 
         VBox content = new VBox(10);
         content.setPadding(new javafx.geometry.Insets(20));
-        content.setPrefWidth(380);
+        content.setPrefWidth(420);
         content.getChildren().addAll(
             new Label("🌐  代理地址："), hostField,
             new Label("🔌  代理端口："), portField,
+            new Separator(),
+            new Label("🍪  Bilibili Cookies 文件："), cookiesBox, cookiesHint,
             new Separator(),
             new Label("🎨  界面主题："), themeBox,
             new Separator(),
@@ -632,8 +661,9 @@ public class MainController {
 
         dialog.showAndWait().ifPresent(result -> {
             if (result == ButtonType.OK) {
-                prefs.put(PREF_PROXY_HOST, hostField.getText().trim());
-                prefs.put(PREF_PROXY_PORT, portField.getText().trim());
+                prefs.put(PREF_PROXY_HOST,   hostField.getText().trim());
+                prefs.put(PREF_PROXY_PORT,   portField.getText().trim());
+                prefs.put(PREF_COOKIES_FILE, cookiesField.getText().trim());
 
                 if (appPrefs != null && scene != null) {
                     String selectedTheme = lightBtn.isSelected() ? "light" : "dark";
@@ -669,6 +699,23 @@ public class MainController {
         if (!host.isEmpty() && !port.isEmpty()) {
             args.add("--proxy"); args.add("http://" + host + ":" + port);
         }
+        return args;
+    }
+
+    // Bilibili 大会员 Cookies（下载 1080P 高码率及以上需要）
+    private List<String> getCookiesArgs() {
+        String cookiesFile = prefs.get(PREF_COOKIES_FILE, "");
+        List<String> args = new ArrayList<>();
+        if (!cookiesFile.isEmpty() && new File(cookiesFile).exists()) {
+            args.add("--cookies"); args.add(cookiesFile);
+        }
+        return args;
+    }
+
+    // 合并代理 + Cookies，所有 yt-dlp 命令统一使用此方法
+    private List<String> getCommonArgs() {
+        List<String> args = new ArrayList<>(getProxyArgs());
+        args.addAll(getCookiesArgs());
         return args;
     }
 

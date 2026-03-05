@@ -17,7 +17,7 @@
         </StackPane>
         <VBox spacing="2" HBox.hgrow="ALWAYS">
             <Label text="视频下载器" styleClass="title-label"/>
-            <Label text="支持 YouTube · 抖音 · TikTok · 批量下载" styleClass="subtitle-label"/>
+            <Label text="支持 YouTube · Bilibili · 抖音 · TikTok · 批量下载" styleClass="subtitle-label"/>
         </VBox>
         <Button text="🕘  历史记录" onAction="#onOpenHistory" styleClass="settings-btn"/>
         <Button text="⚙️  设置" onAction="#onOpenSettings" styleClass="settings-btn"/>
@@ -30,11 +30,11 @@
         <padding><Insets top="14" bottom="14"/></padding>
         <HBox alignment="CENTER_LEFT" spacing="6">
             <Label text="📎  视频链接" styleClass="section-label"/>
-            <Label text="（YouTube / 抖音 / TikTok，每行一个）" styleClass="hint-label"/>
+            <Label text="（YouTube / Bilibili / 抖音 / TikTok，每行一个）" styleClass="hint-label"/>
         </HBox>
         <HBox spacing="8" alignment="TOP_LEFT">
             <TextArea fx:id="urlArea"
-                      promptText="粘贴视频链接（支持 YouTube / 抖音 / TikTok，每行一个，支持批量）"
+                      promptText="粘贴视频链接（支持 YouTube / Bilibili / 抖音 / TikTok，每行一个，支持批量）"
                       prefHeight="80" HBox.hgrow="ALWAYS" wrapText="true"/>
             <VBox spacing="6">
                 <Button fx:id="fetchBtn" text="🔍  解析视频" onAction="#onFetch"
