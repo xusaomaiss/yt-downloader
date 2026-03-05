@@ -390,7 +390,8 @@ public class MainController {
                 List<String> cmd = new ArrayList<>();
                 cmd.add(getYtDlpPath());
                 cmd.addAll(getCommonArgs());
-                // Fix 2: 用带前缀的 --print 标记标题行，避免与普通输出混淆
+                // --print 在新版 yt-dlp 中默认触发模拟模式，必须加 --no-simulate 才会真正下载
+                cmd.add("--no-simulate");
                 cmd.add("--print"); cmd.add("TITLE:%(title)s");
 
                 String fmt = formatBox.getValue();
